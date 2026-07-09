@@ -1,6 +1,5 @@
 use crate::instance::get_full_path;
 use crate::util::io::{metadata, read_dir};
-use base64::{Engine, engine::general_purpose::STANDARD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
