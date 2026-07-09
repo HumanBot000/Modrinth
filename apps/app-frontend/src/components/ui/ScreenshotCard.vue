@@ -1,33 +1,56 @@
 <template>
 	<div
 		ref="wrapperContainer"
-		class="group rounded-lg relative overflow-hidden shadow-md w-full text-contrast"
+		class="group relative rounded-xl overflow-hidden bg-bg-raised border border-border/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:border-border/30 w-full cursor-pointer"
 		@mouseenter="isHovered = true"
 		@mouseleave="isHovered = false"
 	>
+		<!-- Floating Action Buttons -->
 		<div
 			v-if="loaded"
-			class="absolute top-2 right-2 flex gap-1 transition-opacity duration-200 z-10"
-			:class="{ 'opacity-0': !isHovered, 'opacity-100': isHovered }"
+			class="absolute top-3 right-3 flex gap-2 transition-all duration-300 z-10"
+			:class="{
+				'opacity-0 translate-y-[-4px] pointer-events-none': !isHovered,
+				'opacity-100 translate-y-0': isHovered,
+			}"
 		>
-			<Button v-tooltip="'Copy'" icon-only title="Copy" @click="copyImageToClipboard">
-				<ClipboardCopyIcon />
-			</Button>
-			<Button v-tooltip="'View in folder'" icon-only title="View in folder" @click="viewInFolder">
-				<ExternalIcon />
-			</Button>
-			<Button v-tooltip="'Delete'" color="red" icon-only title="Delete" @click="deleteScreenshot">
-				<TrashIcon />
-			</Button>
+			<ButtonStyled
+				v-tooltip="'Copy'"
+				circular
+				icon-only
+				class="!bg-black/60 hover:!bg-black/85 border-none shadow-md backdrop-blur-sm transition-colors"
+				@click.stop="copyImageToClipboard"
+			>
+				<Button><ClipboardCopyIcon class="text-white size-4" /></Button>
+			</ButtonStyled>
+			<ButtonStyled
+				v-tooltip="'View in folder'"
+				circular
+				icon-only
+				class="!bg-black/60 hover:!bg-black/85 border-none shadow-md backdrop-blur-sm transition-colors"
+				@click.stop="viewInFolder"
+			>
+				<Button><ExternalIcon class="text-white size-4" /></Button>
+			</ButtonStyled>
+			<ButtonStyled
+				v-tooltip="'Delete'"
+				circular
+				icon-only
+				class="!bg-black/60 hover:!bg-red-600/90 border-none shadow-md backdrop-blur-sm transition-colors"
+				@click.stop="deleteScreenshot"
+			>
+				<Button><TrashIcon class="text-white size-4" /></Button>
+			</ButtonStyled>
 		</div>
 
+		<!-- Aspect ratio image container -->
 		<div class="aspect-video bg-bg-raised overflow-hidden">
 			<div v-if="!loaded" class="absolute inset-0 skeleton"></div>
 			<img
 				v-else
 				:alt="getScreenshotFileName(screenshot.path)"
 				:src="blobUrl"
-				class="w-full h-full object-cover transition-opacity duration-700"
+				class="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
 				:class="{ 'opacity-0': !loaded, 'opacity-100': loaded }"
 				@load="onLoad"
 				@click="
@@ -39,13 +62,23 @@
 				"
 			/>
 		</div>
+
+		<!-- Info Overlay -->
+		<div
+			class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+		>
+			<p class="text-sm font-semibold text-white truncate">
+				{{ getScreenshotFileName(screenshot.path) }}
+			</p>
+			<p class="text-xs text-white/70">{{ dayjs(screenshot.creation_date).format('h:mm A') }}</p>
+		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
 import { ClipboardCopyIcon, ExternalIcon, TrashIcon } from '@modrinth/assets'
 import type { ImagePreviewModal } from '@modrinth/ui'
-import { Button, injectNotificationManager } from '@modrinth/ui'
+import { Button, ButtonStyled, injectNotificationManager } from '@modrinth/ui'
 import dayjs from 'dayjs'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 

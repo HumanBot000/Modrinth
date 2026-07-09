@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { DropdownIcon } from '@modrinth/assets'
-import { injectNotificationManager } from '@modrinth/ui'
+import { FolderOpenIcon } from '@modrinth/assets'
+import { ButtonStyled, EmptyState, injectNotificationManager } from '@modrinth/ui'
 import type {
 	GalleryEntry,
 	NavigationFunction,
@@ -9,6 +9,7 @@ import type {
 } from '@modrinth/ui/src/components/modal/ImagePreviewModal.vue'
 import ImagePreviewModal from '@modrinth/ui/src/components/modal/ImagePreviewModal.vue'
 import type { Version } from '@modrinth/utils'
+import { mkdir } from '@tauri-apps/plugin-fs'
 import dayjs from 'dayjs'
 import advancedFormat from 'dayjs/plugin/advancedFormat.js'
 import { computed, onUnmounted, ref } from 'vue'
@@ -16,6 +17,7 @@ import { computed, onUnmounted, ref } from 'vue'
 import type ContextMenu from '@/components/ui/ContextMenu.vue'
 import ScreenshotCard from '@/components/ui/ScreenshotCard.vue'
 import { instance_listener } from '@/helpers/events'
+import { get_full_path } from '@/helpers/instance'
 import type { Screenshot } from '@/helpers/screenshots.ts'
 import {
 	getAllProfileScreenshots,
@@ -25,6 +27,7 @@ import {
 	openScreenshotFile,
 } from '@/helpers/screenshots.ts'
 import type { GameInstance, InstanceEvent } from '@/helpers/types'
+import { openPath } from '@/helpers/utils'
 
 dayjs.extend(advancedFormat)
 
@@ -40,6 +43,17 @@ const props = defineProps<{
 const { addNotification } = injectNotificationManager()
 const screenshots = ref<Screenshot[]>((await getAllProfileScreenshots(props.instance.id)) ?? [])
 const imagePreviewModal = ref<typeof ImagePreviewModal>()
+
+async function openScreenshotsFolder() {
+	const fullPath = await get_full_path(props.instance.id)
+	const screenshotsPath = `${fullPath}/screenshots`
+	try {
+		await mkdir(screenshotsPath)
+	} catch {
+		// Ignore if folder already exists
+	}
+	await openPath(screenshotsPath)
+}
 
 function groupAndSortByDate(items: Screenshot[]): readonly [string, Screenshot[]][] {
 	const todayTS = dayjs().startOf('day').valueOf()
@@ -150,7 +164,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div>
+	<div class="h-full flex flex-col">
 		<ImagePreviewModal
 			ref="imagePreviewModal"
 			:next="viewNextScreenshot"
@@ -160,58 +174,63 @@ onUnmounted(() => {
 			:open-file="openFile"
 			:open-file-tooltip="'Open in default system viewer'"
 		/>
-		<div class="w-full p-5">
-			<div
-				v-if="!screenshots.length"
-				class="flex flex-col items-center justify-center py-12 text-center"
-			>
-				<div class="text-lg font-medium mb-2">No screenshots yet</div>
-				<div class="text-sm text-gray-500 dark:text-gray-400">
-					Screenshots taken in-game will appear here
+
+		<EmptyState
+			v-if="!screenshots.length"
+			type="empty-inbox"
+			heading="No screenshots yet"
+			description="Screenshots taken in-game will appear here"
+			class="my-auto"
+		>
+			<template #actions>
+				<ButtonStyled type="outlined">
+					<button class="!h-10 flex items-center gap-2" @click="openScreenshotsFolder">
+						<FolderOpenIcon class="size-5" />
+						Open screenshots folder
+					</button>
+				</ButtonStyled>
+			</template>
+		</EmptyState>
+
+		<div v-else class="space-y-10 py-2">
+			<!-- Only show Today helper message if user has screenshots but none are from today -->
+			<div v-if="!hasToday" class="space-y-4">
+				<div class="flex items-center gap-3">
+					<h3 class="text-xl font-bold tracking-tight text-primary">Today</h3>
+					<span
+						class="px-2.5 py-0.5 text-xs font-semibold bg-bg-raised border border-border/10 text-secondary rounded-full shadow-sm"
+					>
+						0
+					</span>
+					<div class="flex-1 h-px bg-border/10"></div>
 				</div>
+				<p class="text-sm text-gray-500 dark:text-gray-400 italic pl-1">
+					You haven't taken any screenshots today.
+				</p>
 			</div>
 
-			<div v-else class="space-y-8">
-				<template v-if="!hasToday">
-					<details class="group space-y-2" open>
-						<summary class="cursor-pointer flex items-center justify-between">
-							<h2
-								class="text-xxl font-bold underline decoration-4 decoration-brand-green underline-offset-8"
-							>
-								Today
-							</h2>
-							<DropdownIcon
-								class="w-5 h-5 transform transition-transform duration-200 group-open:rotate-180"
-							/>
-						</summary>
-						<p class="text-lg font-medium mb-2">You haven't taken any screenshots today.</p>
-					</details>
-				</template>
-
-				<template v-for="[date, shots] in screenshotsByDate" :key="date">
-					<details class="group space-y-2" open>
-						<summary class="cursor-pointer flex items-center justify-between">
-							<h2
-								class="text-xxl font-bold underline decoration-4 decoration-brand-green underline-offset-8"
-							>
-								{{ date }}
-							</h2>
-							<DropdownIcon
-								class="w-5 h-5 transform transition-transform duration-200 group-open:rotate-180"
-							/>
-						</summary>
-						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-							<ScreenshotCard
-								v-for="s in shots"
-								:key="s.path"
-								:screenshot="s"
-								:profile-path="instance.id"
-								:image-preview-modal="imagePreviewModal!"
-								@deleted="markDeleted(s)"
-							/>
-						</div>
-					</details>
-				</template>
+			<div v-for="[date, shots] in screenshotsByDate" :key="date" class="space-y-4">
+				<div class="flex items-center gap-3">
+					<h3 class="text-xl font-bold tracking-tight text-primary">
+						{{ date }}
+					</h3>
+					<span
+						class="px-2.5 py-0.5 text-xs font-semibold bg-bg-raised border border-border/10 text-secondary rounded-full shadow-sm"
+					>
+						{{ shots.length }}
+					</span>
+					<div class="flex-1 h-px bg-border/10"></div>
+				</div>
+				<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 pt-1">
+					<ScreenshotCard
+						v-for="s in shots"
+						:key="s.path"
+						:screenshot="s"
+						:profile-path="instance.id"
+						:image-preview-modal="imagePreviewModal!"
+						@deleted="markDeleted(s)"
+					/>
+				</div>
 			</div>
 		</div>
 	</div>
